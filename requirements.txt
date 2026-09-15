@@ -13,6 +13,9 @@ torchvision
 # Computer Vision
 Pillow
 
+# Dataset
+datasets
+
 # Application
 streamlit
 fastapi
