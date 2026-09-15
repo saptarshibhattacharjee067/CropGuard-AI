@@ -1,0 +1,19 @@
+# Core
+numpy
+pandas
+matplotlib
+
+# Machine Learning
+scikit-learn
+
+# Deep Learning
+torch
+torchvision
+
+# Computer Vision
+Pillow
+
+# Application
+streamlit
+fastapi
+uvicorn
