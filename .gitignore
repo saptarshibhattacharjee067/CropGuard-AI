@@ -25,3 +25,5 @@ models/*.pt
 # OS
 .DS_Store
 Thumbs.db
+
+app/uploaded_image.jpg

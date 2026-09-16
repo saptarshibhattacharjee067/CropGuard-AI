@@ -1,17 +1,32 @@
-import torch
-from torch.utils.data import DataLoader
+from pathlib import Path
 from collections import Counter
 
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from torchvision.models import resnet18
+
 from data.dataset import TomatoDataset
-from models.cnn import TomatoCNN
 
 
-# Configuration
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-MANIFEST = "data/processed/tomato_manifest.csv"
-MODEL_PATH = "models/tomato_cnn.pth"
+MANIFEST = (
+    PROJECT_ROOT
+    / "data"
+    / "processed"
+    / "tomato_manifest.csv"
+)
+
+MODEL_PATH = (
+    PROJECT_ROOT
+    / "models"
+    / "resnet18_finetuned_tomato.pth"
+)
 
 BATCH_SIZE = 32
+
+CONFIDENCE_THRESHOLD = 60.0
 
 CLASS_NAMES = [
     "Bacterial_spot",
@@ -19,7 +34,7 @@ CLASS_NAMES = [
     "Late_blight",
     "Leaf_Mold",
     "Septoria_leaf_spot",
-    "Spider_mites",
+    "Spider_mites Two-spotted_spider_mite",
     "Target_Spot",
     "Tomato_Yellow_Leaf_Curl_Virus",
     "Tomato_mosaic_virus",
@@ -27,19 +42,20 @@ CLASS_NAMES = [
 ]
 
 
-# Device
-
 device = torch.device(
-    "cuda" if torch.cuda.is_available() else "cpu"
+    "cuda"
+    if torch.cuda.is_available()
+    else "cpu"
 )
 
-print("Using device:", device)
+print(
+    "Using device:",
+    device
+)
 
-
-# Load test dataset
 
 test_dataset = TomatoDataset(
-    MANIFEST,
+    str(MANIFEST),
     "test"
 )
 
@@ -51,10 +67,17 @@ test_loader = DataLoader(
 )
 
 
-# Load trained model
+model = resnet18(
+    weights=None
+)
 
-model = TomatoCNN(
-    num_classes=10
+number_of_features = (
+    model.fc.in_features
+)
+
+model.fc = nn.Linear(
+    number_of_features,
+    len(CLASS_NAMES)
 )
 
 model.load_state_dict(
@@ -69,12 +92,20 @@ model = model.to(device)
 model.eval()
 
 
-# Collect prediction errors
-
-errors = Counter()
-
 total_images = 0
-correct = 0
+
+correct_predictions = 0
+
+incorrect_predictions = 0
+
+
+correct_confidences = []
+
+incorrect_confidences = []
+
+all_confidences = []
+
+error_pairs = Counter()
 
 
 with torch.no_grad():
@@ -83,74 +114,315 @@ with torch.no_grad():
 
         images = images.to(device)
 
-        outputs = model(images)
+        labels = labels.to(device)
 
-        predictions = torch.argmax(
+        outputs = model(
+            images
+        )
+
+        probabilities = torch.softmax(
             outputs,
             dim=1
         )
 
-        for actual, predicted in zip(
+        confidences, predictions = (
+            torch.max(
+                probabilities,
+                dim=1
+            )
+        )
+
+
+        for actual, predicted, confidence in zip(
             labels,
-            predictions.cpu()
+            predictions,
+            confidences
         ):
+
+            actual_class = actual.item()
+
+            predicted_class = (
+                predicted.item()
+            )
+
+            confidence_value = (
+                confidence.item()
+                * 100
+            )
+
 
             total_images += 1
 
-            if actual == predicted:
+            all_confidences.append(
+                confidence_value
+            )
 
-                correct += 1
+
+            if actual_class == predicted_class:
+
+                correct_predictions += 1
+
+                correct_confidences.append(
+                    confidence_value
+                )
 
             else:
 
-                actual_name = CLASS_NAMES[
-                    actual.item()
-                ]
+                incorrect_predictions += 1
 
-                predicted_name = CLASS_NAMES[
-                    predicted.item()
-                ]
-
-                errors[
-                    (actual_name, predicted_name)
-                ] += 1
+                incorrect_confidences.append(
+                    confidence_value
+                )
 
 
-# Results
+                pair = (
+                    CLASS_NAMES[
+                        actual_class
+                    ],
+                    CLASS_NAMES[
+                        predicted_class
+                    ]
+                )
 
-print("\n" + "=" * 50)
+                error_pairs[pair] += 1
 
-print("ERROR ANALYSIS")
 
-print("=" * 50)
+accuracy = (
+    correct_predictions
+    / total_images
+    * 100
+)
+
+
+average_correct_confidence = (
+    sum(correct_confidences)
+    / len(correct_confidences)
+)
+
+
+average_incorrect_confidence = (
+    sum(incorrect_confidences)
+    / len(incorrect_confidences)
+)
+
+
+maximum_incorrect_confidence = max(
+    incorrect_confidences
+)
+
+
+minimum_incorrect_confidence = min(
+    incorrect_confidences
+)
+
+
+high_confidence_errors = [
+    confidence
+    for confidence in incorrect_confidences
+    if confidence >= CONFIDENCE_THRESHOLD
+]
+
+
+high_confidence_error_count = len(
+    high_confidence_errors
+)
+
+
+high_confidence_error_percentage = (
+    high_confidence_error_count
+    / incorrect_predictions
+    * 100
+)
+
+
+correct_above_threshold = sum(
+    confidence >= CONFIDENCE_THRESHOLD
+    for confidence in correct_confidences
+)
+
+
+correct_above_threshold_percentage = (
+    correct_above_threshold
+    / correct_predictions
+    * 100
+)
+
+
+print()
+
+print("=" * 65)
 
 print(
-    f"Total test images: {total_images}"
+    "FINE-TUNED RESNET18 ERROR & CONFIDENCE ANALYSIS"
+)
+
+print("=" * 65)
+
+
+print()
+
+print(
+    f"Total test images: "
+    f"{total_images}"
 )
 
 print(
-    f"Correct predictions: {correct}"
+    f"Correct predictions: "
+    f"{correct_predictions}"
 )
 
 print(
     f"Incorrect predictions: "
-    f"{total_images - correct}"
+    f"{incorrect_predictions}"
 )
 
 print(
     f"Accuracy: "
-    f"{correct / total_images * 100:.2f}%"
+    f"{accuracy:.2f}%"
 )
 
 
-# Most common mistakes
+print()
 
-print("\nMost common prediction errors:")
-print("-" * 50)
+print(
+    "CONFIDENCE ANALYSIS"
+)
 
-for (actual, predicted), count in errors.most_common():
+print(
+    "-" * 65
+)
+
+
+print(
+    f"Average confidence on correct predictions: "
+    f"{average_correct_confidence:.2f}%"
+)
+
+print(
+    f"Average confidence on incorrect predictions: "
+    f"{average_incorrect_confidence:.2f}%"
+)
+
+print(
+    f"Maximum confidence on an incorrect prediction: "
+    f"{maximum_incorrect_confidence:.2f}%"
+)
+
+print(
+    f"Minimum confidence on an incorrect prediction: "
+    f"{minimum_incorrect_confidence:.2f}%"
+)
+
+
+print()
+
+print(
+    f"Current screening threshold: "
+    f"{CONFIDENCE_THRESHOLD:.0f}%"
+)
+
+print(
+    f"Incorrect predictions above threshold: "
+    f"{high_confidence_error_count} "
+    f"out of {incorrect_predictions}"
+)
+
+print(
+    f"Percentage of errors above threshold: "
+    f"{high_confidence_error_percentage:.2f}%"
+)
+
+
+print()
+
+print(
+    f"Correct predictions above threshold: "
+    f"{correct_above_threshold} "
+    f"out of {correct_predictions}"
+)
+
+print(
+    f"Percentage of correct predictions above threshold: "
+    f"{correct_above_threshold_percentage:.2f}%"
+)
+
+
+print()
+
+print(
+    "MOST COMMON PREDICTION ERRORS"
+)
+
+print(
+    "-" * 65
+)
+
+
+if len(error_pairs) == 0:
 
     print(
-        f"{actual:35} -> "
-        f"{predicted:35} : {count}"
+        "No incorrect predictions found."
     )
+
+else:
+
+    for (
+        actual_class,
+        predicted_class
+    ), count in error_pairs.most_common():
+
+        percentage = (
+            count
+            / incorrect_predictions
+            * 100
+        )
+
+        print(
+            f"{actual_class:<42}"
+            f" -> "
+            f"{predicted_class:<42}"
+            f": {count:>3}"
+            f" ({percentage:.2f}% of errors)"
+        )
+
+
+print()
+
+print(
+    "ERROR SUMMARY BY ACTUAL CLASS"
+)
+
+print(
+    "-" * 65
+)
+
+
+actual_error_counts = Counter()
+
+
+for (
+    actual_class,
+    predicted_class
+), count in error_pairs.items():
+
+    actual_error_counts[
+        actual_class
+    ] += count
+
+
+for class_name in CLASS_NAMES:
+
+    count = actual_error_counts[
+        class_name
+    ]
+
+    print(
+        f"{class_name:<45}: {count}"
+    )
+
+
+print()
+
+print(
+    "ERROR & CONFIDENCE ANALYSIS COMPLETE."
+)

@@ -1,15 +1,44 @@
+from pathlib import Path
+
+import pandas as pd
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
+from torchvision.models import resnet18
 import matplotlib.pyplot as plt
 
 from data.dataset import TomatoDataset
-from models.cnn import TomatoCNN
 
 
-# Configuration
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-MANIFEST = "data/processed/tomato_manifest.csv"
-MODEL_PATH = "models/tomato_cnn.pth"
+MANIFEST = (
+    PROJECT_ROOT
+    / "data"
+    / "processed"
+    / "tomato_manifest.csv"
+)
+
+MODEL_PATH = (
+    PROJECT_ROOT
+    / "models"
+    / "resnet18_finetuned_tomato.pth"
+)
+
+RESULTS_DIR = (
+    PROJECT_ROOT
+    / "results"
+)
+
+CSV_PATH = (
+    RESULTS_DIR
+    / "resnet18_error_analysis.csv"
+)
+
+FIGURE_PATH = (
+    RESULTS_DIR
+    / "resnet18_misclassified_images.png"
+)
 
 BATCH_SIZE = 32
 
@@ -19,23 +48,34 @@ CLASS_NAMES = [
     "Late_blight",
     "Leaf_Mold",
     "Septoria_leaf_spot",
-    "Spider_mites",
+    "Spider_mites Two-spotted_spider_mite",
     "Target_Spot",
     "Tomato_Yellow_Leaf_Curl_Virus",
     "Tomato_mosaic_virus",
     "healthy"
 ]
 
-# Device
 
 device = torch.device(
-    "cuda" if torch.cuda.is_available() else "cpu"
+    "cuda"
+    if torch.cuda.is_available()
+    else "cpu"
 )
 
-# Dataset
+print(
+    "Using device:",
+    device
+)
+
+
+RESULTS_DIR.mkdir(
+    parents=True,
+    exist_ok=True
+)
+
 
 test_dataset = TomatoDataset(
-    MANIFEST,
+    str(MANIFEST),
     "test"
 )
 
@@ -47,10 +87,17 @@ test_loader = DataLoader(
 )
 
 
-# Load model
+model = resnet18(
+    weights=None
+)
 
-model = TomatoCNN(
-    num_classes=10
+number_of_features = (
+    model.fc.in_features
+)
+
+model.fc = nn.Linear(
+    number_of_features,
+    len(CLASS_NAMES)
 )
 
 model.load_state_dict(
@@ -61,14 +108,15 @@ model.load_state_dict(
 )
 
 model = model.to(device)
+
 model.eval()
 
 
-# Find misclassified images
-
 misclassified_images = []
-misclassified_actual = []
-misclassified_predicted = []
+
+error_records = []
+
+test_index = 0
 
 
 with torch.no_grad():
@@ -77,84 +125,312 @@ with torch.no_grad():
 
         images = images.to(device)
 
-        outputs = model(images)
+        labels = labels.to(device)
 
-        predictions = torch.argmax(
+        outputs = model(
+            images
+        )
+
+        probabilities = torch.softmax(
             outputs,
             dim=1
         )
 
-        for i in range(len(labels)):
+        confidences, predictions = (
+            torch.max(
+                probabilities,
+                dim=1
+            )
+        )
 
-            if predictions[i].cpu() != labels[i]:
+        for i in range(
+            len(labels)
+        ):
+
+            actual_label = (
+                labels[i].item()
+            )
+
+            predicted_label = (
+                predictions[i].item()
+            )
+
+            confidence = (
+                confidences[i].item()
+                * 100
+            )
+
+
+            if actual_label != predicted_label:
+
+                actual_name = (
+                    CLASS_NAMES[
+                        actual_label
+                    ]
+                )
+
+                predicted_name = (
+                    CLASS_NAMES[
+                        predicted_label
+                    ]
+                )
+
+
+                error_records.append({
+                    "test_index": test_index,
+                    "actual_class": actual_name,
+                    "predicted_class": predicted_name,
+                    "confidence": confidence
+                })
+
 
                 misclassified_images.append(
-                    images[i].cpu()
+                    (
+                        images[i].cpu(),
+                        actual_label,
+                        predicted_label,
+                        confidence
+                    )
                 )
 
-                misclassified_actual.append(
-                    labels[i].item()
-                )
 
-                misclassified_predicted.append(
-                    predictions[i].item()
-                )
-
-            # Stop after collecting 20 errors
-            if len(misclassified_images) >= 20:
-                break
-
-        if len(misclassified_images) >= 20:
-            break
+            test_index += 1
 
 
-# Display errors
+print()
+print(
+    "Total test images:",
+    test_index
+)
 
 print(
-    f"Showing {len(misclassified_images)} misclassified images."
+    "Total misclassified images:",
+    len(misclassified_images)
 )
 
 
-fig, axes = plt.subplots(
-    4,
-    5,
-    figsize=(15, 12)
+error_dataframe = pd.DataFrame(
+    error_records
 )
 
 
-for i, ax in enumerate(axes.flat):
+error_dataframe = (
+    error_dataframe
+    .sort_values(
+        "confidence",
+        ascending=False
+    )
+)
 
-    image = misclassified_images[i]
 
-    image = image.permute(
-        1,
-        2,
-        0
+error_dataframe.to_csv(
+    CSV_PATH,
+    index=False
+)
+
+
+print()
+print(
+    "Error analysis saved to:"
+)
+
+print(
+    CSV_PATH
+)
+
+
+if len(misclassified_images) > 0:
+
+    number_to_display = min(
+        len(misclassified_images),
+        54
     )
 
-    image = image.clamp(
-        0,
+    columns = 6
+
+    rows = (
+        number_to_display
+        + columns
+        - 1
+    ) // columns
+
+
+    fig, axes = plt.subplots(
+        rows,
+        columns,
+        figsize=(18, 3 * rows)
+    )
+
+
+    axes = axes.flatten()
+
+
+    mean = torch.tensor(
+        [
+            0.485,
+            0.456,
+            0.406
+        ]
+    ).view(
+        3,
+        1,
         1
     )
 
-    ax.imshow(image)
 
-    actual = CLASS_NAMES[
-        misclassified_actual[i]
-    ]
-
-    predicted = CLASS_NAMES[
-        misclassified_predicted[i]
-    ]
-
-    ax.set_title(
-        f"Actual: {actual}\nPredicted: {predicted}",
-        fontsize=8
+    std = torch.tensor(
+        [
+            0.229,
+            0.224,
+            0.225
+        ]
+    ).view(
+        3,
+        1,
+        1
     )
 
-    ax.axis("off")
+
+    for i in range(
+        number_to_display
+    ):
+
+        image = (
+            misclassified_images[i][0]
+        )
+
+        actual_label = (
+            misclassified_images[i][1]
+        )
+
+        predicted_label = (
+            misclassified_images[i][2]
+        )
+
+        confidence = (
+            misclassified_images[i][3]
+        )
 
 
-plt.tight_layout()
+        image = (
+            image * std
+            + mean
+        )
 
-plt.show()
+
+        image = image.clamp(
+            0,
+            1
+        )
+
+
+        image = image.permute(
+            1,
+            2,
+            0
+        )
+
+
+        axes[i].imshow(
+            image
+        )
+
+
+        actual_name = (
+            CLASS_NAMES[
+                actual_label
+            ]
+        )
+
+        predicted_name = (
+            CLASS_NAMES[
+                predicted_label
+            ]
+        )
+
+
+        axes[i].set_title(
+            "Actual: "
+            + actual_name
+            + "\nPredicted: "
+            + predicted_name
+            + f"\nConfidence: {confidence:.2f}%",
+            fontsize=8
+        )
+
+
+        axes[i].axis(
+            "off"
+        )
+
+
+    for i in range(
+        number_to_display,
+        len(axes)
+    ):
+
+        axes[i].axis(
+            "off"
+        )
+
+
+    plt.suptitle(
+        "Fine-Tuned ResNet18 Misclassified Images",
+        fontsize=16
+    )
+
+    plt.tight_layout(
+        rect=[
+            0,
+            0,
+            1,
+            0.97
+        ]
+    )
+
+
+    plt.savefig(
+        FIGURE_PATH,
+        dpi=200,
+        bbox_inches="tight"
+    )
+
+
+    print()
+    print(
+        "Misclassified image figure saved to:"
+    )
+
+    print(
+        FIGURE_PATH
+    )
+
+
+    plt.show()
+
+
+print()
+print(
+    "Top Error Cases"
+)
+
+print(
+    "---------------"
+)
+
+
+if len(error_dataframe) > 0:
+
+    print(
+        error_dataframe.head(
+            20
+        ).to_string(
+            index=False
+        )
+    )
+
+else:
+
+    print(
+        "No misclassified images found."
+    )

@@ -1,293 +1,206 @@
+from pathlib import Path
+
+import numpy as np
 import torch
 import torch.nn as nn
-import matplotlib.pyplot as plt
-import numpy as np
-
 from PIL import Image
+from torchvision import transforms
 from torchvision.models import resnet18
-
-from data.dataset import TomatoDataset
-
-# Configuration
-
-MANIFEST = "data/processed/tomato_manifest.csv"
-
-MODEL_PATH = "models/resnet18_finetuned_tomato.pth"
-
-OUTPUT_PATH = "results/gradcam_resnet18.png"
-
-NUM_CLASSES = 10
+import matplotlib.pyplot as plt
 
 
-# Device
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+MODEL_PATH = (
+    PROJECT_ROOT
+    / "models"
+    / "resnet18_finetuned_tomato.pth"
+)
+
+IMAGE_SIZE = 224
+
+CLASS_NAMES = [
+    "Bacterial_spot",
+    "Early_blight",
+    "Late_blight",
+    "Leaf_Mold",
+    "Septoria_leaf_spot",
+    "Spider_mites Two-spotted_spider_mite",
+    "Target_Spot",
+    "Tomato_Yellow_Leaf_Curl_Virus",
+    "Tomato_mosaic_virus",
+    "healthy",
+]
+
 
 device = torch.device(
     "cuda" if torch.cuda.is_available() else "cpu"
 )
 
-print("Using device:", device)
 
+def load_model():
+    model = resnet18(weights=None)
 
-# Load dataset
+    number_of_features = model.fc.in_features
 
-test_dataset = TomatoDataset(
-    MANIFEST,
-    "test",
-    use_augmentation=False
-)
-
-
-# Load model
-
-model = resnet18(
-    weights=None
-)
-
-number_of_features = model.fc.in_features
-
-model.fc = nn.Linear(
-    number_of_features,
-    NUM_CLASSES
-)
-
-model.load_state_dict(
-    torch.load(
-        MODEL_PATH,
-        map_location=device
+    model.fc = nn.Linear(
+        number_of_features,
+        len(CLASS_NAMES)
     )
-)
 
-model = model.to(device)
+    model.load_state_dict(
+        torch.load(
+            MODEL_PATH,
+            map_location=device
+        )
+    )
 
-model.eval()
+    model = model.to(device)
+    model.eval()
 
+    return model
 
-# Grad-CAM setup
 
-activations = None
-gradients = None
+transform = transforms.Compose([
+    transforms.Resize(
+        (IMAGE_SIZE, IMAGE_SIZE)
+    ),
+    transforms.ToTensor(),
+    transforms.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225]
+    )
+])
 
 
-def forward_hook(module, input, output):
+def generate_gradcam(image_path):
+    model = load_model()
 
-    global activations
+    activations = {}
+    gradients = {}
 
-    activations = output
+    target_layer = model.layer4[-1].conv2
 
+    def forward_hook(module, input_data, output):
+        activations["value"] = output
 
-def backward_hook(module, grad_input, grad_output):
+        def save_gradient(gradient):
+            gradients["value"] = gradient
 
-    global gradients
+        output.register_hook(save_gradient)
 
-    gradients = grad_output[0]
+    hook = target_layer.register_forward_hook(
+        forward_hook
+    )
 
+    original_image = Image.open(
+        image_path
+    ).convert("RGB")
 
-# Use the final convolutional layer
-target_layer = model.layer4[-1]
+    image_tensor = transform(
+        original_image
+    )
 
-target_layer.register_forward_hook(
-    forward_hook
-)
+    image_tensor = image_tensor.unsqueeze(0)
+    image_tensor = image_tensor.to(device)
 
-target_layer.register_full_backward_hook(
-    backward_hook
-)
+    model.zero_grad()
 
+    output = model(image_tensor)
 
-# Select an image
+    predicted_class = output.argmax(
+        dim=1
+    ).item()
 
-image, true_label = test_dataset[0]
+    target_score = output[
+        0,
+        predicted_class
+    ]
 
-image_batch = image.unsqueeze(0).to(device)
+    target_score.backward()
 
+    hook.remove()
 
-# Forward pass
+    activation = activations["value"]
+    gradient = gradients["value"]
 
-model.zero_grad()
+    weights = gradient.mean(
+        dim=(2, 3),
+        keepdim=True
+    )
 
-output = model(image_batch)
+    cam = (
+        weights * activation
+    ).sum(dim=1)
 
-predicted_label = torch.argmax(
-    output,
-    dim=1
-).item()
+    cam = torch.relu(cam)
 
+    cam = cam.squeeze().detach().cpu().numpy()
 
-# Backward pass
+    if cam.max() != cam.min():
+        cam = (
+            cam - cam.min()
+        ) / (
+            cam.max() - cam.min()
+        )
+    else:
+        cam = np.zeros_like(cam)
 
-score = output[0, predicted_label]
-
-score.backward()
-
-
-# Generate Grad-CAM
-
-weights = gradients.mean(
-    dim=(2, 3),
-    keepdim=True
-)
-
-cam = (
-    weights * activations
-).sum(
-    dim=1
-).squeeze()
-
-
-cam = torch.relu(cam)
-
-cam = cam.detach().cpu().numpy()
-
-
-# Normalize heatmap
-cam = (
-    cam - cam.min()
-) / (
-    cam.max() - cam.min() + 1e-8
-)
-
-
-# Prepare original image
-
-original_image = image.permute(
-    1, 2, 0
-).cpu().numpy()
-
-
-# Undo ImageNet normalization
-mean = np.array(
-    [0.485, 0.456, 0.406]
-)
-
-std = np.array(
-    [0.229, 0.224, 0.225]
-)
-
-original_image = (
-    original_image * std
-) + mean
-
-original_image = np.clip(
-    original_image,
-    0,
-    1
-)
-
-
-# Resize heatmap
-
-heatmap = Image.fromarray(
-    np.uint8(cam * 255)
-)
-
-heatmap = heatmap.resize(
-    (224, 224)
-)
-
-heatmap = np.array(
-    heatmap
-) / 255.0
-
-
-# Create visualization
-
-plt.figure(
-    figsize=(15, 5)
-)
-
-
-# Original image
-plt.subplot(
-    1,
-    3,
-    1
-)
-
-plt.imshow(
-    original_image
-)
-
-plt.title(
-    f"Original\nActual: "
-    f"{test_dataset.idx_to_class[true_label]}"
-)
-
-plt.axis("off")
-
-
-# Heatmap
-plt.subplot(
-    1,
-    3,
-    2
-)
-
-plt.imshow(
-    heatmap,
-    cmap="jet"
-)
-
-plt.title(
-    f"Grad-CAM\nPredicted: "
-    f"{test_dataset.idx_to_class[predicted_label]}"
-)
-
-plt.axis("off")
-
-
-# Overlay
-plt.subplot(
-    1,
-    3,
-    3
-)
-
-plt.imshow(
-    original_image
-)
-
-plt.imshow(
-    heatmap,
-    cmap="jet",
-    alpha=0.45
-)
-
-plt.title(
-    "Model Attention"
-)
-
-plt.axis("off")
-
-
-# Save result
-
-plt.tight_layout()
-
-plt.savefig(
-    OUTPUT_PATH,
-    dpi=200,
-    bbox_inches="tight"
-)
-
-plt.show()
-
-
-print()
-print("=" * 50)
-print("Grad-CAM COMPLETE")
-print("=" * 50)
-
-print(
-    "Actual class:",
-    test_dataset.idx_to_class[true_label]
-)
-
-print(
-    "Predicted class:",
-    test_dataset.idx_to_class[predicted_label]
-)
-
-print(
-    "Saved to:",
-    OUTPUT_PATH
-)
+    original_width, original_height = (
+        original_image.size
+    )
+
+    cam_image = Image.fromarray(
+        (cam * 255).astype(np.uint8)
+    )
+
+    cam_image = cam_image.resize(
+        (original_width, original_height),
+        Image.Resampling.BILINEAR
+    )
+
+    cam = np.array(cam_image) / 255.0
+
+    heatmap = plt.get_cmap("jet")(
+        cam
+    )[:, :, :3]
+
+    heatmap = (
+        heatmap * 255
+    ).astype(np.uint8)
+
+    heatmap_image = Image.fromarray(
+        heatmap
+    )
+
+    original_array = np.array(
+        original_image
+    ).astype(np.float32)
+
+    heatmap_array = np.array(
+        heatmap_image
+    ).astype(np.float32)
+
+    overlay = (
+        0.5 * original_array
+        + 0.5 * heatmap_array
+    )
+
+    overlay = np.clip(
+        overlay,
+        0,
+        255
+    ).astype(np.uint8)
+
+    overlay_image = Image.fromarray(
+        overlay
+    )
+
+    predicted_label = CLASS_NAMES[
+        predicted_class
+    ]
+
+    return (
+        predicted_label,
+        overlay_image
+    )

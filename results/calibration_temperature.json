@@ -1,0 +1,10 @@
+{
+    "temperature": 0.9047937393188477,
+    "validation_images": 2901,
+    "accuracy_before": 98.34539890289307,
+    "accuracy_after": 98.34539890289307,
+    "nll_before": 0.050521645694971085,
+    "nll_after": 0.049919940531253815,
+    "ece_before": 0.005620039068162441,
+    "ece_after": 0.0033196869771927595
+}

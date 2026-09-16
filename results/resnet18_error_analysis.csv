@@ -1,0 +1,55 @@
+test_index,actual_class,predicted_class,confidence
+193,Early_blight,Late_blight,98.8444447517395
+853,Target_Spot,Early_blight,98.46680760383606
+1536,Septoria_leaf_spot,Late_blight,98.1782853603363
+612,Target_Spot,Early_blight,97.8808045387268
+2227,Tomato_Yellow_Leaf_Curl_Virus,Spider_mites Two-spotted_spider_mite,94.74773406982422
+743,Target_Spot,Spider_mites Two-spotted_spider_mite,92.15771555900574
+194,Early_blight,Late_blight,91.27867817878723
+2225,Tomato_Yellow_Leaf_Curl_Virus,Spider_mites Two-spotted_spider_mite,90.991872549057
+1565,Septoria_leaf_spot,Spider_mites Two-spotted_spider_mite,90.9057080745697
+207,Early_blight,Late_blight,90.76070189476013
+882,Target_Spot,Spider_mites Two-spotted_spider_mite,90.45587182044983
+191,Early_blight,Late_blight,87.89441585540771
+192,Early_blight,Late_blight,87.71612644195557
+1428,Septoria_leaf_spot,Late_blight,86.4288330078125
+1204,Bacterial_spot,Early_blight,82.51524567604065
+708,Target_Spot,Spider_mites Two-spotted_spider_mite,81.89689517021179
+835,Target_Spot,Septoria_leaf_spot,81.8027138710022
+725,Target_Spot,Septoria_leaf_spot,79.50444221496582
+672,Target_Spot,healthy,76.73243284225464
+3074,Spider_mites Two-spotted_spider_mite,Target_Spot,75.86453557014465
+718,Target_Spot,healthy,75.8609414100647
+2538,Tomato_Yellow_Leaf_Curl_Virus,Bacterial_spot,73.33139777183533
+792,Target_Spot,Early_blight,72.98402190208435
+1120,Bacterial_spot,Tomato_Yellow_Leaf_Curl_Virus,72.62228727340698
+1499,Septoria_leaf_spot,Late_blight,72.55656719207764
+167,Early_blight,Target_Spot,68.85758638381958
+1336,Septoria_leaf_spot,Spider_mites Two-spotted_spider_mite,66.42205715179443
+750,Target_Spot,Spider_mites Two-spotted_spider_mite,65.5330240726471
+48,Early_blight,Target_Spot,65.51582217216492
+2786,Spider_mites Two-spotted_spider_mite,healthy,65.45865535736084
+3072,Spider_mites Two-spotted_spider_mite,Target_Spot,65.01550674438477
+841,Target_Spot,Early_blight,61.53963804244995
+49,Early_blight,Target_Spot,61.37235760688782
+1545,Septoria_leaf_spot,Late_blight,61.21312975883484
+614,Target_Spot,healthy,58.87882709503174
+2897,Spider_mites Two-spotted_spider_mite,Target_Spot,57.85226821899414
+681,Target_Spot,healthy,56.284236907958984
+797,Target_Spot,Leaf_Mold,55.18936514854431
+3228,Leaf_Mold,Tomato_Yellow_Leaf_Curl_Virus,54.10483479499817
+868,Target_Spot,Early_blight,53.8538932800293
+152,Early_blight,Late_blight,53.656238317489624
+2246,Tomato_Yellow_Leaf_Curl_Virus,Spider_mites Two-spotted_spider_mite,53.59673500061035
+669,Target_Spot,Leaf_Mold,52.099090814590454
+3014,Spider_mites Two-spotted_spider_mite,Target_Spot,51.82056427001953
+1223,Bacterial_spot,Tomato_Yellow_Leaf_Curl_Virus,49.724242091178894
+3586,Late_blight,Tomato_Yellow_Leaf_Curl_Virus,49.559542536735535
+865,Target_Spot,Spider_mites Two-spotted_spider_mite,49.1163969039917
+1122,Bacterial_spot,Tomato_Yellow_Leaf_Curl_Virus,46.4115172624588
+3013,Spider_mites Two-spotted_spider_mite,Target_Spot,46.13727927207947
+101,Early_blight,Spider_mites Two-spotted_spider_mite,44.79436278343201
+1267,Bacterial_spot,Early_blight,41.21527671813965
+1605,Septoria_leaf_spot,Early_blight,41.20495617389679
+124,Early_blight,Target_Spot,37.079158425331116
+1657,Septoria_leaf_spot,Leaf_Mold,36.796578764915466
