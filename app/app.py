@@ -21,6 +21,10 @@ from risk_engine import (
     calculate_risk
 )
 
+from gradcam import (
+    generate_gradcam
+)
+
 
 st.set_page_config(
     page_title="CropGuard AI",
@@ -287,7 +291,6 @@ if uploaded_file is not None:
 
     st.divider()
 
-
     st.header(
         "🌦️ Environmental Risk Assessment"
     )
@@ -295,7 +298,8 @@ if uploaded_file is not None:
 
     st.write(
         "Enter the current environmental conditions "
-        "to estimate disease-favorable conditions."
+        "to estimate whether the environment is favorable "
+        "for the predicted disease."
     )
 
 
@@ -321,9 +325,12 @@ if uploaded_file is not None:
     )
 
 
-    if st.button(
+    assess_risk = st.button(
         "🌦️ Assess Environmental Risk"
-    ):
+    )
+
+
+    if assess_risk:
 
         risk_result = calculate_risk(
             disease=disease,
@@ -351,19 +358,19 @@ if uploaded_file is not None:
         if risk_level == "HIGH":
 
             st.error(
-                f"🔴 HIGH RISK"
+                "🔴 HIGH RISK"
             )
 
         elif risk_level == "MODERATE":
 
             st.warning(
-                f"🟡 MODERATE RISK"
+                "🟡 MODERATE RISK"
             )
 
         else:
 
             st.success(
-                f"🟢 LOW RISK"
+                "🟢 LOW RISK"
             )
 
 
@@ -405,12 +412,149 @@ if uploaded_file is not None:
             )
 
 
+        st.divider()
+
+        st.header(
+            "🌱 CropGuard AI Combined Assessment"
+        )
+
+
+        st.write(
+            "This section combines the image-based AI "
+            "screening result with the environmental "
+            "conditions supplied by the user."
+        )
+
+
+        st.subheader(
+            "AI Disease Screening"
+        )
+
+
+        st.write(
+            f"**Predicted condition:** "
+            f"{disease.replace('_', ' ')}"
+        )
+
+
+        st.write(
+            f"**Model confidence:** "
+            f"{confidence:.2f}%"
+        )
+
+
+        st.subheader(
+            "Environmental Conditions"
+        )
+
+
+        st.write(
+            f"**Temperature:** "
+            f"{temperature:.1f} °C"
+        )
+
+
+        st.write(
+            f"**Relative humidity:** "
+            f"{humidity}%"
+        )
+
+
+        rainfall_status = (
+            "Yes"
+            if recent_rainfall
+            else "No"
+        )
+
+
+        st.write(
+            f"**Recent rainfall:** "
+            f"{rainfall_status}"
+        )
+
+
+        st.subheader(
+            "Overall Screening"
+        )
+
+
+        if (
+            status == "sufficiently_confident"
+            and risk_level == "HIGH"
+        ):
+
+            st.error(
+                "🔴 HIGH PRIORITY FOR MONITORING"
+            )
+
+
+            st.write(
+                "The image model produced a prediction "
+                "above the screening threshold, and the "
+                "supplied environmental conditions are "
+                "highly favorable according to the "
+                "environmental risk rules."
+            )
+
+
+        elif (
+            status == "sufficiently_confident"
+            and risk_level == "MODERATE"
+        ):
+
+            st.warning(
+                "🟡 MODERATE PRIORITY FOR MONITORING"
+            )
+
+
+            st.write(
+                "The image model produced a prediction "
+                "above the screening threshold, while "
+                "the supplied environmental conditions "
+                "indicate moderate disease-favorable risk."
+            )
+
+
+        elif (
+            status == "sufficiently_confident"
+            and risk_level == "LOW"
+        ):
+
+            st.success(
+                "🟢 LOWER ENVIRONMENTAL RISK"
+            )
+
+
+            st.write(
+                "The image model produced a prediction "
+                "above the screening threshold, while "
+                "the supplied environmental conditions "
+                "indicate lower disease-favorable risk."
+            )
+
+
+        else:
+
+            st.warning(
+                "🟠 UNCERTAIN AI SCREENING"
+            )
+
+
+            st.write(
+                "The model confidence is below the current "
+                "screening threshold. Environmental risk "
+                "results should therefore be interpreted "
+                "with additional caution."
+            )
+
+
         st.info(
-            "Environmental risk is an analytical "
-            "screening result based on the supplied "
-            "conditions. It is not a definitive disease "
-            "forecast. Verify management decisions with "
-            "appropriate local agricultural guidance."
+            "The combined assessment is a screening tool. "
+            "It combines the model prediction with the "
+            "environmental rule engine; it does not establish "
+            "a definitive agricultural diagnosis or disease "
+            "forecast. Verify important management decisions "
+            "with appropriate local agricultural guidance."
         )
 
 
@@ -431,23 +575,44 @@ if uploaded_file is not None:
     gradcam_path = (
         PROJECT_ROOT
         / "results"
-        / "gradcam_resnet18.png"
+        / "current_gradcam.png"
     )
 
 
-    if gradcam_path.exists():
+    with st.spinner(
+        "Generating model attention visualization..."
+    ):
 
-        st.image(
-            gradcam_path,
-            caption="Model attention visualization",
-            width="stretch"
-        )
+        try:
 
-    else:
+            gradcam_result = generate_gradcam(
+                temp_path,
+                gradcam_path
+            )
 
-        st.info(
-            "Grad-CAM visualization is not available yet."
-        )
+
+            st.image(
+                gradcam_result["output_path"],
+                caption="Grad-CAM for the uploaded image",
+                width="stretch"
+            )
+
+
+            st.caption(
+                f"Grad-CAM generated for the model prediction: "
+                f"{gradcam_result['class'].replace('_', ' ')}"
+            )
+
+
+        except Exception as error:
+
+            st.warning(
+                "Grad-CAM could not be generated for this image."
+            )
+
+            st.caption(
+                f"Technical details: {error}"
+            )
 
 
     st.info(
