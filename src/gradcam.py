@@ -186,8 +186,7 @@ def generate_gradcam(
         )
 
         weights = (
-            gradient_maps
-            .mean(
+            gradient_maps.mean(
                 dim=(2, 3),
                 keepdim=True
             )
@@ -203,9 +202,7 @@ def generate_gradcam(
             cam
         )
 
-        cam = (
-            cam.numpy()
-        )
+        cam = cam.numpy()
 
         if cam.max() > 0:
 
@@ -237,9 +234,11 @@ def generate_gradcam(
             cam_image
         ) / 255.0
 
-        original_array = np.asarray(
-            original_image
-        ) / 255.0
+        original_array = (
+            np.asarray(
+                original_image
+            ) / 255.0
+        )
 
         figure = plt.figure(
             figsize=(10, 5)
@@ -294,6 +293,15 @@ def generate_gradcam(
 
         plt.tight_layout()
 
+        output_path = Path(
+            output_path
+        )
+
+        output_path.parent.mkdir(
+            parents=True,
+            exist_ok=True
+        )
+
         figure.savefig(
             output_path,
             dpi=150,
@@ -335,7 +343,9 @@ if __name__ == "__main__":
         "Enter image path: "
     )
 
-    if not Path(image_path).exists():
+    if not Path(
+        image_path
+    ).exists():
 
         print(
             "Error: Image file not found."
@@ -355,6 +365,7 @@ if __name__ == "__main__":
         )
 
         print()
+
         print(
             "Predicted class:",
             result["class"]

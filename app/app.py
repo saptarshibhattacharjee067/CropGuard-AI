@@ -33,15 +33,14 @@ st.set_page_config(
 )
 
 
-st.title("🌱 CropGuard AI")
-
-st.subheader(
-    "AI-Powered Crop Disease Detection"
+st.title(
+    "🌱 CropGuard AI Combined Assessment"
 )
 
 st.write(
-    "Upload a tomato leaf image and CropGuard AI "
-    "will analyze it using a fine-tuned ResNet18 model."
+    "CropGuard AI combines image-based AI screening "
+    "with environmental risk assessment to provide "
+    "an analytical screening result for tomato plants."
 )
 
 
@@ -115,8 +114,9 @@ if uploaded_file is not None:
 
     st.divider()
 
+
     st.header(
-        "🔍 AI Diagnosis"
+        "🔍 AI Disease Screening"
     )
 
 
@@ -291,6 +291,7 @@ if uploaded_file is not None:
 
     st.divider()
 
+
     st.header(
         "🌦️ Environmental Risk Assessment"
     )
@@ -298,8 +299,7 @@ if uploaded_file is not None:
 
     st.write(
         "Enter the current environmental conditions "
-        "to estimate whether the environment is favorable "
-        "for the predicted disease."
+        "to estimate disease-favorable conditions."
     )
 
 
@@ -325,12 +325,9 @@ if uploaded_file is not None:
     )
 
 
-    assess_risk = st.button(
+    if st.button(
         "🌦️ Assess Environmental Risk"
-    )
-
-
-    if assess_risk:
+    ):
 
         risk_result = calculate_risk(
             disease=disease,
@@ -412,149 +409,12 @@ if uploaded_file is not None:
             )
 
 
-        st.divider()
-
-        st.header(
-            "🌱 CropGuard AI Combined Assessment"
-        )
-
-
-        st.write(
-            "This section combines the image-based AI "
-            "screening result with the environmental "
-            "conditions supplied by the user."
-        )
-
-
-        st.subheader(
-            "AI Disease Screening"
-        )
-
-
-        st.write(
-            f"**Predicted condition:** "
-            f"{disease.replace('_', ' ')}"
-        )
-
-
-        st.write(
-            f"**Model confidence:** "
-            f"{confidence:.2f}%"
-        )
-
-
-        st.subheader(
-            "Environmental Conditions"
-        )
-
-
-        st.write(
-            f"**Temperature:** "
-            f"{temperature:.1f} °C"
-        )
-
-
-        st.write(
-            f"**Relative humidity:** "
-            f"{humidity}%"
-        )
-
-
-        rainfall_status = (
-            "Yes"
-            if recent_rainfall
-            else "No"
-        )
-
-
-        st.write(
-            f"**Recent rainfall:** "
-            f"{rainfall_status}"
-        )
-
-
-        st.subheader(
-            "Overall Screening"
-        )
-
-
-        if (
-            status == "sufficiently_confident"
-            and risk_level == "HIGH"
-        ):
-
-            st.error(
-                "🔴 HIGH PRIORITY FOR MONITORING"
-            )
-
-
-            st.write(
-                "The image model produced a prediction "
-                "above the screening threshold, and the "
-                "supplied environmental conditions are "
-                "highly favorable according to the "
-                "environmental risk rules."
-            )
-
-
-        elif (
-            status == "sufficiently_confident"
-            and risk_level == "MODERATE"
-        ):
-
-            st.warning(
-                "🟡 MODERATE PRIORITY FOR MONITORING"
-            )
-
-
-            st.write(
-                "The image model produced a prediction "
-                "above the screening threshold, while "
-                "the supplied environmental conditions "
-                "indicate moderate disease-favorable risk."
-            )
-
-
-        elif (
-            status == "sufficiently_confident"
-            and risk_level == "LOW"
-        ):
-
-            st.success(
-                "🟢 LOWER ENVIRONMENTAL RISK"
-            )
-
-
-            st.write(
-                "The image model produced a prediction "
-                "above the screening threshold, while "
-                "the supplied environmental conditions "
-                "indicate lower disease-favorable risk."
-            )
-
-
-        else:
-
-            st.warning(
-                "🟠 UNCERTAIN AI SCREENING"
-            )
-
-
-            st.write(
-                "The model confidence is below the current "
-                "screening threshold. Environmental risk "
-                "results should therefore be interpreted "
-                "with additional caution."
-            )
-
-
         st.info(
-            "The combined assessment is a screening tool. "
-            "It combines the model prediction with the "
-            "environmental rule engine; it does not establish "
-            "a definitive agricultural diagnosis or disease "
-            "forecast. Verify important management decisions "
-            "with appropriate local agricultural guidance."
+            "Environmental risk is an analytical "
+            "screening result based on the supplied "
+            "conditions. It is not a definitive disease "
+            "forecast. Verify management decisions with "
+            "appropriate local agricultural guidance."
         )
 
 
@@ -567,8 +427,9 @@ if uploaded_file is not None:
 
 
     st.write(
-        "The Grad-CAM visualization shows image regions "
-        "that contributed strongly to the model's prediction."
+        "The Grad-CAM visualization highlights "
+        "image regions that contributed strongly "
+        "to the model's prediction."
     )
 
 
@@ -580,45 +441,176 @@ if uploaded_file is not None:
 
 
     with st.spinner(
-        "Generating model attention visualization..."
+        "Generating Grad-CAM explanation..."
     ):
 
-        try:
-
-            gradcam_result = generate_gradcam(
-                temp_path,
-                gradcam_path
-            )
+        gradcam_result = generate_gradcam(
+            image_path=temp_path,
+            output_path=gradcam_path
+        )
 
 
-            st.image(
-                gradcam_result["output_path"],
-                caption="Grad-CAM for the uploaded image",
-                width="stretch"
-            )
+    if gradcam_path.exists():
+
+        st.image(
+            gradcam_path,
+            caption="Grad-CAM explanation for the uploaded image",
+            width="stretch"
+        )
 
 
-            st.caption(
-                f"Grad-CAM generated for the model prediction: "
-                f"{gradcam_result['class'].replace('_', ' ')}"
-            )
+        st.caption(
+            "Grad-CAM generated for predicted class: "
+            f"{gradcam_result['class'].replace('_', ' ')}"
+        )
 
 
-        except Exception as error:
+    st.divider()
 
-            st.warning(
-                "Grad-CAM could not be generated for this image."
-            )
 
-            st.caption(
-                f"Technical details: {error}"
-            )
+    st.header(
+        "🌱 Combined Assessment"
+    )
+
+
+    st.write(
+        "This section combines the image-based AI "
+        "screening result with the environmental "
+        "conditions supplied by the user."
+    )
+
+
+    combined_risk_result = calculate_risk(
+        disease=disease,
+        temperature=temperature,
+        humidity=humidity,
+        recent_rainfall=recent_rainfall
+    )
+
+
+    combined_risk_level = (
+        combined_risk_result["risk_level"]
+    )
+
+
+    st.subheader(
+        "AI Disease Screening"
+    )
+
+
+    st.write(
+        f"**Predicted condition:** "
+        f"{disease.replace('_', ' ')}"
+    )
+
+
+    st.write(
+        f"**Model confidence:** "
+        f"{confidence:.2f}%"
+    )
+
+
+    st.subheader(
+        "Environmental Conditions"
+    )
+
+
+    st.write(
+        f"**Temperature:** "
+        f"{temperature:.1f} °C"
+    )
+
+
+    st.write(
+        f"**Relative humidity:** "
+        f"{humidity}%"
+    )
+
+
+    st.write(
+        f"**Recent rainfall:** "
+        f"{'Yes' if recent_rainfall else 'No'}"
+    )
+
+
+    st.subheader(
+        "Overall Screening"
+    )
+
+
+    if (
+        status == "sufficiently_confident"
+        and combined_risk_level == "HIGH"
+    ):
+
+        st.error(
+            "🔴 HIGH PRIORITY FOR MONITORING"
+        )
+
+        st.write(
+            "The image model produced a prediction "
+            "above the screening threshold, and the "
+            "supplied environmental conditions are "
+            "highly favorable according to the "
+            "environmental risk rules."
+        )
+
+
+    elif (
+        status == "sufficiently_confident"
+        and combined_risk_level == "MODERATE"
+    ):
+
+        st.warning(
+            "🟡 MODERATE PRIORITY FOR MONITORING"
+        )
+
+        st.write(
+            "The image model produced a prediction "
+            "above the screening threshold, while "
+            "the supplied environmental conditions "
+            "indicate moderate disease-favorable "
+            "conditions."
+        )
+
+
+    elif (
+        status == "sufficiently_confident"
+        and combined_risk_level == "LOW"
+    ):
+
+        st.success(
+            "🟢 LOWER ENVIRONMENTAL RISK"
+        )
+
+        st.write(
+            "The image model produced a prediction "
+            "above the screening threshold, while "
+            "the supplied environmental conditions "
+            "indicate lower disease-favorable risk."
+        )
+
+
+    else:
+
+        st.warning(
+            "🟡 LOW CONFIDENCE — REVIEW IMAGE"
+        )
+
+        st.write(
+            "The image model prediction did not "
+            "exceed the current screening threshold. "
+            "Environmental conditions are shown for "
+            "context but should not be interpreted "
+            "as confirmation of disease."
+        )
 
 
     st.info(
-        "CropGuard AI provides an AI-based screening "
-        "result and should not be treated as a definitive "
-        "agricultural diagnosis. For real-world treatment "
-        "decisions, verify the result with appropriate "
-        "agricultural guidance."
+        "The combined assessment is a screening tool. "
+        "It combines the model prediction with the "
+        "environmental rule engine; it does not establish "
+        "a definitive agricultural diagnosis or disease "
+        "forecast. Verify important management decisions "
+        "with appropriate local agricultural guidance."
     )
